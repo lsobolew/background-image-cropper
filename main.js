@@ -9,21 +9,38 @@ function calculateBg(el) {
     var imgHeight = el.getAttribute('data-bg-image-height');
     var heightRatio, widthRatio;
     var resize = '0x0';
+    var img = {
+        width: null,
+        height: null
+    }
 
     if(bgImg.width === 'auto' && bgImg.height !== 'auto') {
         widthRatio = heightRatio = (bgImg.height / imgHeight);
-        resize = 'x' + bgImg.height;
+        resize = 'x' + Math.min(imgHeight, bgImg.height);
     } else if(bgImg.height === 'auto' && bgImg.width !== 'auto') {
         heightRatio = widthRatio = (bgImg.width / imgWidth);
-        resize = bgImg.width + 'x';
+        resize = Math.min(imgWidth, bgImg.width) + 'x';
     } else {
         widthRatio = 1;
         heightRatio = 1;
     }
-// console.log(widthRatio, heightRatio);
+// console.log(bg.width / bg.height, imgWidth / imgHeight);
+    if((bg.width / bg.height) < (imgWidth / imgHeight)) {
+        img.width = (bg.width + (bg.width - bg.containWidth)) / widthRatio;
+        img.height = bg.height / heightRatio;
+    } else if ((bg.width / bg.height) > (imgWidth / imgHeight)){
+        img.width = bg.width / widthRatio;
+        img.height = (bg.height + (bg.height - bg.containHeight)) / heightRatio;
+    } else {
+        img.width = bg.width / widthRatio;
+        img.height = bg.height / heightRatio;
+    }
+
+    img.width = Math.round(img.width);
+    img.height = Math.round(img.height);
 
     // el.style.backgroundImage = `url(http://localhost:8090/cw${bg.width + bg.offsetLeft - 3},ch${bg.height + bg.offsetTop - 3}/https://dummyimage.com/${imgWidth}x${imgHeight}/000/fff)`;
-    el.style.backgroundImage = `url(http://localhost:8090/${resize},cw${bg.width / widthRatio},ch${bg.height / heightRatio}/https://dummyimage.com/${imgWidth}x${imgHeight}/000/fff)`;
+    el.style.backgroundImage = `url(http://localhost:8090/${resize},cw${img.width},ch${img.height},q60/https://dummyimage.com/${imgWidth}x${imgHeight}/000/fff)`;
 }
 
 
@@ -33,6 +50,8 @@ function getBackgroundRectSize(el) {
     var bg = {
         width: null,
         height: null,
+        containWidth: null,
+        containHeight: null,
         offsetLeft: 0,
         offsetTop: 0
     }
@@ -44,6 +63,8 @@ function getBackgroundRectSize(el) {
     var borderBottomWidth = parseFloat(window.getComputedStyle(el).borderBottomWidth, 10);
     var paddingLeft = parseFloat(window.getComputedStyle(el).paddingLeft, 10);
     var paddingTop = parseFloat(window.getComputedStyle(el).paddingTop, 10);
+    var paddingBottom = parseFloat(window.getComputedStyle(el).paddingBottom, 10);
+    var paddingRight = parseFloat(window.getComputedStyle(el).paddingRight, 10);
 
     if(window.getComputedStyle(el).backgroundAttachment === "scroll"
         || (window.getComputedStyle(el).backgroundAttachment === "local" && window.getComputedStyle(el).overflow === "visible")) {
@@ -51,11 +72,13 @@ function getBackgroundRectSize(el) {
             bg.width = el.offsetWidth;
             bg.height = el.offsetHeight;
         } else if(backgroundOrigin === "padding-box") {
-            bg.width = el.offsetWidth - parseFloat(window.getComputedStyle(el).borderLeftWidth, 10);
-            bg.height = el.offsetHeight - parseFloat(window.getComputedStyle(el).borderTopWidth, 10);
+            bg.width = el.offsetWidth - borderLeftWidth;
+            bg.height = el.offsetHeight - borderTopWidth;
+            bg.containWidth = el.offsetWidth - borderLeftWidth - borderRightWidth;
+            bg.containHeight = el.offsetHeight - borderTopWidth - borderBottomWidth;
         } else if(backgroundOrigin === "content-box") {
-            bg.width = el.offsetWidth - parseFloat(window.getComputedStyle(el).borderLeftWidth, 10) - parseFloat(window.getComputedStyle(el).paddingLeft, 10);
-            bg.height = el.offsetHeight - parseFloat(window.getComputedStyle(el).borderTopWidth, 10) - parseFloat(window.getComputedStyle(el).paddingTop, 10);
+            bg.width = el.offsetWidth - borderLeftWidth - paddingLeft;
+            bg.height = el.offsetHeight - borderTopWidth - paddingTop;
         }
     } else if(window.getComputedStyle(el).backgroundAttachment === "local"){
         if(backgroundOrigin === "border-box") {
@@ -71,7 +94,7 @@ function getBackgroundRectSize(el) {
             bg.height = el.scrollHeight - paddingTop;
         }
     }
-    el.bgSize = {width: bg.width, height: bg.height};
+    el.bgSize = bg;
     return bg;
 }
 

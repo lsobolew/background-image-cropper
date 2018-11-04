@@ -5,6 +5,9 @@
 function calculateBg(el) {
     var bg = getBackgroundRectSize(el);
     var bgImg = getBackgroundImageSize(el);
+    var bgPositionX = parseFloat(getComputedStyle(el).backgroundPositionX, 10);
+    var bgPositionY = parseFloat(getComputedStyle(el).backgroundPositionY, 10);
+
     var imgWidth = el.getAttribute('data-bg-image-width');
     var imgHeight = el.getAttribute('data-bg-image-height');
     var heightRatio, widthRatio;
@@ -36,6 +39,9 @@ function calculateBg(el) {
         img.height = bg.height / heightRatio;
     }
 
+    // img.width = img.width - bgPositionX / widthRatio;
+    // img.height = img.height - bgPositionY / heightRatio;
+
     img.width = Math.round(img.width);
     img.height = Math.round(img.height);
 
@@ -55,43 +61,45 @@ function getBackgroundRectSize(el) {
         offsetLeft: 0,
         offsetTop: 0
     }
-    var backgroundOrigin = window.getComputedStyle(el).backgroundOrigin;
-    var backgroundAttachment = window.getComputedStyle(el).backgroundAttachment;
-    var borderLeftWidth = parseFloat(window.getComputedStyle(el).borderLeftWidth, 10);
-    var borderTopWidth = parseFloat(window.getComputedStyle(el).borderTopWidth, 10);
-    var borderRightWidth = parseFloat(window.getComputedStyle(el).borderRightWidth, 10);
-    var borderBottomWidth = parseFloat(window.getComputedStyle(el).borderBottomWidth, 10);
-    var paddingLeft = parseFloat(window.getComputedStyle(el).paddingLeft, 10);
-    var paddingTop = parseFloat(window.getComputedStyle(el).paddingTop, 10);
-    var paddingBottom = parseFloat(window.getComputedStyle(el).paddingBottom, 10);
-    var paddingRight = parseFloat(window.getComputedStyle(el).paddingRight, 10);
+    var elementProperties = {
+        backgroundOrigin: window.getComputedStyle(el).backgroundOrigin,
+        backgroundAttachment: window.getComputedStyle(el).backgroundAttachment,
+        borderLeftWidth: parseFloat(window.getComputedStyle(el).borderLeftWidth, 10),
+        borderTopWidth: parseFloat(window.getComputedStyle(el).borderTopWidth, 10),
+        borderRightWidth: parseFloat(window.getComputedStyle(el).borderRightWidth, 10),
+        borderBottomWidth: parseFloat(window.getComputedStyle(el).borderBottomWidth, 10),
+        paddingLeft: parseFloat(window.getComputedStyle(el).paddingLeft, 10),
+        paddingTop: parseFloat(window.getComputedStyle(el).paddingTop, 10),
+        paddingBottom: parseFloat(window.getComputedStyle(el).paddingBottom, 10),
+        paddingRight: parseFloat(window.getComputedStyle(el).paddingRight, 10),
+    }
 
-    if(window.getComputedStyle(el).backgroundAttachment === "scroll"
-        || (window.getComputedStyle(el).backgroundAttachment === "local" && window.getComputedStyle(el).overflow === "visible")) {
-        if(backgroundOrigin === "border-box") {
+    if(elementProperties.backgroundAttachment === "scroll"
+        || (elementProperties.backgroundAttachment === "local" && window.getComputedStyle(el).overflow === "visible")) {
+        if(elementProperties.backgroundOrigin === "border-box") {
             bg.width = el.offsetWidth;
             bg.height = el.offsetHeight;
-        } else if(backgroundOrigin === "padding-box") {
-            bg.width = el.offsetWidth - borderLeftWidth;
-            bg.height = el.offsetHeight - borderTopWidth;
-            bg.containWidth = el.offsetWidth - borderLeftWidth - borderRightWidth;
-            bg.containHeight = el.offsetHeight - borderTopWidth - borderBottomWidth;
-        } else if(backgroundOrigin === "content-box") {
-            bg.width = el.offsetWidth - borderLeftWidth - paddingLeft;
-            bg.height = el.offsetHeight - borderTopWidth - paddingTop;
+        } else if(elementProperties.backgroundOrigin === "padding-box") {
+            bg.width = el.offsetWidth - elementProperties.borderLeftWidth;
+            bg.height = el.offsetHeight - elementProperties.borderTopWidth;
+            bg.containWidth = el.offsetWidth - elementProperties.borderLeftWidth - elementProperties.borderRightWidth;
+            bg.containHeight = el.offsetHeight - elementProperties.borderTopWidth - elementProperties.borderBottomWidth;
+        } else if(elementProperties.backgroundOrigin === "content-box") {
+            bg.width = el.offsetWidth - elementProperties.borderLeftWidth - elementProperties.paddingLeft;
+            bg.height = el.offsetHeight - elementProperties.borderTopWidth - elementProperties.paddingTop;
         }
-    } else if(window.getComputedStyle(el).backgroundAttachment === "local"){
-        if(backgroundOrigin === "border-box") {
-            bg.offsetLeft = borderLeftWidth;
-            bg.offsetTop = borderTopWidth;
+    } else if(elementProperties.backgroundAttachment === "local"){
+        if(elementProperties.backgroundOrigin === "border-box") {
+            bg.offsetLeft = elementProperties.borderLeftWidth;
+            bg.offsetTop = elementProperties.borderTopWidth;
             bg.width = el.scrollWidth + bg.offsetLeft;
             bg.height = el.scrollHeight + bg.offsetTop;
-        } else if(backgroundOrigin === "padding-box") {
+        } else if(elementProperties.backgroundOrigin === "padding-box") {
             bg.width = el.scrollWidth;
             bg.height = el.scrollHeight;
-        } else if(backgroundOrigin === "content-box") {
-            bg.width = el.scrollWidth - paddingLeft;
-            bg.height = el.scrollHeight - paddingTop;
+        } else if(elementProperties.backgroundOrigin === "content-box") {
+            bg.width = el.scrollWidth - elementProperties.paddingLeft;
+            bg.height = el.scrollHeight - elementProperties.paddingTop;
         }
     }
     el.bgSize = bg;

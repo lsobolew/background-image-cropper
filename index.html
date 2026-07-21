@@ -1,9 +1,18 @@
 <!doctype html>
-<html>
+<html lang="en">
     <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>background-image-cropper — demo</title>
         <link rel="stylesheet" href="style.css" />
     </head>
     <body>
+        <p id="intro">
+            Each cell's background-image is rewritten to a client-side cropped &amp; scaled
+            copy sized to exactly what the browser paints. <strong>Hover</strong> a cell to see
+            the original (uncropped) image for comparison — the picture should not move.
+            Rows A–F cover every background-attachment × background-origin combination.
+        </p>
         <section id="a">
             <div id="a1" data-bg-image-width="300" data-bg-image-height="300"><span></span></div>
             <div id="a2" data-bg-image-width="300" data-bg-image-height="150"><span></span></div>
@@ -40,6 +49,6 @@
             <div id="f3" data-bg-image-width="150" data-bg-image-height="300"><span></span></div>
             <div id="f4" data-bg-image-width="150" data-bg-image-height="150"><span></span></div>
         </section>
-        <script src="main.js"></script>
+        <script type="module" src="main.js"></script>
     </body>
 </html>

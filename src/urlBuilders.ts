@@ -34,10 +34,15 @@ export function createProxyUrlBuilder(
 export const defaultUrlBuilder: UrlBuilder = createProxyUrlBuilder();
 
 /**
- * Build URLs for the free, public images.weserv.nl proxy, which supports both
- * manual cropping (`cx`,`cy`,`cw`,`ch`) and resizing (`w`,`h`). This yields
- * pixel-accurate output for *every* combination and works on any website with
- * no infrastructure of your own — a good drop-in default for production.
+ * Build URLs for the free, public [wsrv.nl](https://wsrv.nl) proxy (a.k.a.
+ * images.weserv.nl), which supports rectangle cropping (`&precrop` + `cx`,`cy`,
+ * `cw`,`ch`, in source pixels) and resizing (`w`,`h`). This yields pixel-accurate
+ * output for *every* combination and works on any website with no infrastructure
+ * of your own — a good drop-in default for production.
+ *
+ * `fit=fill` stretches to the exact output size: the crop already has the output
+ * aspect ratio, and for the whole-image case the element's own `background-size`
+ * re-derives the display, so stretching is always correct here.
  *
  * Requires the source natural size to be known (via a size hint or image load);
  * layers with an unknown natural size are left unchanged.
@@ -45,13 +50,15 @@ export const defaultUrlBuilder: UrlBuilder = createProxyUrlBuilder();
 export function createWeservUrlBuilder(
   options: { base?: string; quality?: number } = {},
 ): UrlBuilder {
-  const base = options.base ?? "https://images.weserv.nl/";
+  const base = options.base ?? "https://wsrv.nl/";
   const quality = options.quality ?? 90;
   return (plan) => {
     if (!plan.natural) return plan.url;
     const params = new URLSearchParams();
     params.set("url", weservSource(plan.url));
     if (plan.crop) {
+      // `precrop` crops the source *before* resizing (in source pixels).
+      params.set("precrop", "true");
       params.set("cx", String(plan.crop.x));
       params.set("cy", String(plan.crop.y));
       params.set("cw", String(plan.crop.width));
@@ -59,13 +66,13 @@ export function createWeservUrlBuilder(
     }
     params.set("w", String(plan.output.width));
     params.set("h", String(plan.output.height));
-    params.set("fit", "cover");
+    params.set("fit", "fill");
     params.set("q", String(quality));
     return `${base}?${params.toString()}`;
   };
 }
 
-/** The images.weserv.nl builder with default settings. */
+/** The wsrv.nl builder with default settings. */
 export const weservUrlBuilder: UrlBuilder = createWeservUrlBuilder();
 
 /**

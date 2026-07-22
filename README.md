@@ -110,9 +110,10 @@ Bundled builders:
   `{base}{W}x{H},fit,cw{CW},ch{CH},q{Q}/{sourceUrl}`. Assumes a top-left crop
   (the grammar has no crop offset).
 - **`weservUrlBuilder`** / `createWeservUrlBuilder({ base?, quality? })` —
-  targets the free, public [images.weserv.nl](https://images.weserv.nl) proxy,
-  which supports full manual crop + resize, so it is pixel-accurate for **every**
-  combination and needs no infrastructure of your own.
+  targets the free, public [wsrv.nl](https://wsrv.nl) proxy (a.k.a.
+  images.weserv.nl), using `&precrop` + `cx,cy,cw,ch` for a source-pixel crop and
+  `w,h,fit=fill` to resize. Pixel-accurate for **every** combination and needs no
+  infrastructure of your own.
 
 Custom builder for, say, imgproxy / Cloudinary / imgix:
 
@@ -142,6 +143,13 @@ DPR, never upscaled beyond the source). Tiling backgrounds (`repeat`/`round`/
 `space`) are never cropped; only the tile is downscaled. `local` backgrounds are
 scaled but not cropped, since scrolling can reveal any part of them.
 
+When a genuine **sub-region** is cropped, the delivered image no longer has the
+dimensions the original `background-size` was computed against — so the cropper
+also sets that layer's `background-size`, `-position` and `-repeat` inline to
+paint the smaller image exactly over the visible rect (`CropPlan.paint`). Layers
+that deliver the whole image (contain, tiling, `local`, or an image that already
+fits) keep their original background properties untouched.
+
 ## Demo
 
 Hosted: **<https://lsobolew.github.io/background-image-cropper/>**. Run it locally:
@@ -152,10 +160,12 @@ npm run build
 npm run demo   # http://localhost:5173
 ```
 
-The demo has no backend: it uses a client-side canvas builder that bakes each
-crop into a `data:` URL. Hover any cell to see the original — the picture must not
-move, which proves the crop matches what the browser paints. Rows A–F cover every
-`background-attachment` × `background-origin` combination.
+Each scenario renders the **same** element twice — an *original* that loads the
+full source from `dummyimage.com`, and an *optimized* copy rewritten by the
+library to fetch only the visible region through the `wsrv.nl` proxy. They render
+identically while the optimized request downloads far fewer pixels; captions show
+the live crop and savings. Resize the window to watch crops recompute via
+`ResizeObserver`.
 
 ## Development
 

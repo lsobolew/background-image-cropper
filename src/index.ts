@@ -39,5 +39,11 @@ export function cropBackgrounds(
 
 // Advanced / testable building blocks.
 export { computeLayerPlan, type LayerInput } from "./geometry.ts";
-export { resolveElement, extractUrl, type ResolvedLayer, type LayerGeometry } from "./dom.ts";
+export {
+  resolveElement,
+  extractUrl,
+  type ResolvedLayer,
+  type LayerGeometry,
+  type OriginalBackground,
+} from "./dom.ts";
 export { getNaturalSize, clearNaturalSizeCache } from "./naturalSize.ts";

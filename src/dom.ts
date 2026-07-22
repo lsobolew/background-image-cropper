@@ -12,19 +12,36 @@ export type ResolvedLayer =
   | { kind: "raw"; image: string };
 
 /**
- * Read an element's computed background properties and box geometry, returning
- * one {@link ResolvedLayer} per `background-image` layer, in paint order. Layers
+/**
+ * The element's *original* background paint properties. These must be captured
+ * before the cropper writes any overrides, because `background-size` /
+ * `-position` / `-repeat` get rewritten for cropped layers — reading them back
+ * live would feed the cropper its own output. `-origin`/`-clip`/`-attachment`
+ * are never overridden, so those are read from the live computed style.
+ */
+export interface OriginalBackground {
+  image: string;
+  size: string;
+  position: string;
+  repeat: string;
+}
+
+/**
+ * Read an element's background layers and box geometry, returning one
+ * {@link ResolvedLayer} per `background-image` layer, in paint order. Layers
  * that are not croppable `url()`s (gradients, `image-set()`, `none`, or
  * `background-clip: text`) are returned as `raw` so they can be preserved.
+ *
+ * Paint properties come from `original` (see {@link OriginalBackground}); box
+ * geometry and origin/clip/attachment come from the live computed style.
  */
-export function resolveElement(el: Element, originalImage: string): ResolvedLayer[] {
+export function resolveElement(el: Element, original: OriginalBackground): ResolvedLayer[] {
   const style = getComputedStyle(el);
-  const images = splitTopLevel(originalImage, ",");
+  const images = splitTopLevel(original.image, ",");
 
-  const sizes = splitTopLevel(style.backgroundSize, ",");
-  const posX = splitTopLevel(readPositionX(style), ",");
-  const posY = splitTopLevel(readPositionY(style), ",");
-  const repeats = splitTopLevel(style.backgroundRepeat, ",");
+  const sizes = splitTopLevel(original.size, ",");
+  const positions = splitTopLevel(original.position, ",");
+  const repeats = splitTopLevel(original.repeat, ",");
   const origins = splitTopLevel(style.backgroundOrigin, ",");
   const clips = splitTopLevel(style.backgroundClip, ",");
   const attachments = splitTopLevel(style.backgroundAttachment, ",");
@@ -46,6 +63,8 @@ export function resolveElement(el: Element, originalImage: string): ResolvedLaye
       attachment,
     );
 
+    const [posX, posY] = splitPosition(layerValue(positions, i));
+
     return {
       kind: "url",
       geometry: {
@@ -53,12 +72,18 @@ export function resolveElement(el: Element, originalImage: string): ResolvedLaye
         positioningArea,
         clipArea,
         size: layerValue(sizes, i) || "auto",
-        positionX: layerValue(posX, i) || "0%",
-        positionY: layerValue(posY, i) || "0%",
+        positionX: posX,
+        positionY: posY,
         repeat: parseRepeat(layerValue(repeats, i) || "repeat"),
       },
     };
   });
+}
+
+/** Split one layer's `background-position` ("x y") into its two axis tokens. */
+function splitPosition(value: string): [string, string] {
+  const tokens = splitTopLevel(value, " ");
+  return [tokens[0] || "0%", tokens[1] || "50%"];
 }
 
 interface Boxes {
@@ -145,25 +170,6 @@ export function extractUrl(image: string): string | null {
     inner = inner.slice(1, -1);
   }
   return inner.length > 0 ? inner : null;
-}
-
-function readPositionX(style: CSSStyleDeclaration): string {
-  const x = style.backgroundPositionX;
-  if (x) return x;
-  return firstAxis(style.backgroundPosition, 0);
-}
-
-function readPositionY(style: CSSStyleDeclaration): string {
-  const y = style.backgroundPositionY;
-  if (y) return y;
-  return firstAxis(style.backgroundPosition, 1);
-}
-
-/** Fallback for browsers not exposing background-position-x/y: split each layer. */
-function firstAxis(backgroundPosition: string, axis: 0 | 1): string {
-  return splitTopLevel(backgroundPosition, ",")
-    .map((layer) => splitTopLevel(layer, " ")[axis] ?? "0%")
-    .join(", ");
 }
 
 function px(value: string): number {

@@ -45,6 +45,19 @@ export interface CropPlan {
   readonly repeat: { x: RepeatMode; y: RepeatMode };
   /** The device pixel ratio that {@link output} was scaled by. */
   readonly dpr: number;
+  /**
+   * Advisory placement for the host element. When a genuine sub-region is
+   * cropped ({@link crop} is non-null), the delivered image must be painted at
+   * this `size` (CSS px) and `position` (CSS px, relative to the background
+   * positioning area's top-left) with `no-repeat`, because the original
+   * `background-size`/`-position` no longer apply to the smaller image.
+   * `null` means keep the element's original background properties.
+   *
+   * URL builders can ignore this field; it is consumed by the cropper.
+   */
+  readonly paint:
+    | { size: Size; position: { x: number; y: number } }
+    | null;
 }
 
 /**

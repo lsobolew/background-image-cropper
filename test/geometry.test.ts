@@ -25,6 +25,11 @@ test("cover with top-left position crops the overflowing right side", () => {
   // rendered 200x100, only the left 100x100 shows.
   assert.deepEqual(plan!.crop, { x: 0, y: 0, width: 100, height: 100 });
   assert.deepEqual(plan!.output, { width: 100, height: 100 });
+  // Cropped -> the host must paint it exactly over the visible 100x100 rect.
+  assert.deepEqual(plan!.paint, {
+    size: { width: 100, height: 100 },
+    position: { x: 0, y: 0 },
+  });
 });
 
 test("cover with center position crops the middle of the image", () => {
@@ -40,6 +45,10 @@ test("cover with center position crops the middle of the image", () => {
 
   assert.ok(plan);
   assert.deepEqual(plan!.crop, { x: 50, y: 0, width: 100, height: 100 });
+  assert.deepEqual(plan!.paint, {
+    size: { width: 100, height: 100 },
+    position: { x: 0, y: 0 },
+  });
 });
 
 test("image fully inside the box is delivered whole, just downscaled", () => {
@@ -54,6 +63,7 @@ test("image fully inside the box is delivered whole, just downscaled", () => {
 
   assert.ok(plan);
   assert.equal(plan!.crop, null); // whole image
+  assert.equal(plan!.paint, null); // keep the element's original background-size
   assert.deepEqual(plan!.output, { width: 95, height: 190 });
 });
 

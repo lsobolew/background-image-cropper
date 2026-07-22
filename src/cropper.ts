@@ -1,14 +1,32 @@
-import type { CropperOptions, UrlBuilder } from "./types.ts";
-import { resolveElement, type ResolvedLayer } from "./dom.ts";
+import type { CropPlan, CropperOptions, UrlBuilder } from "./types.ts";
+import { resolveElement, type OriginalBackground, type ResolvedLayer } from "./dom.ts";
 import { computeLayerPlan } from "./geometry.ts";
 import { getNaturalSize } from "./naturalSize.ts";
 import { defaultUrlBuilder } from "./urlBuilders.ts";
+import { layerValue, splitTopLevel } from "./css/split.ts";
 
 interface ElementState {
-  /** The element's `background-image` before we ever touched it. */
-  originalImage: string;
+  /**
+   * The element's original computed background paint properties, captured once
+   * before we wrote any overrides. Geometry is always computed from these, never
+   * from the live (possibly already-overridden) style.
+   */
+  original: OriginalBackground;
+  /** The element's own inline background longhands, restored when not overriding. */
+  inline: {
+    image: string;
+    size: string;
+    position: string;
+    repeat: string;
+  };
   /** Monotonic token to discard stale async recomputes. */
   token: number;
+}
+
+/** Result of building one layer: its `background-image` token and any override. */
+interface BuiltLayer {
+  image: string;
+  paint: CropPlan["paint"];
 }
 
 /**
@@ -52,7 +70,9 @@ export class BackgroundCropper {
         this.observed.add(el);
         this.ensureResizeObserver()?.observe(el);
       }
-      void this.process(el);
+      // Defer the first compute to after layout so element boxes are final,
+      // then recompute reactively via ResizeObserver.
+      this.schedule(el);
     }
     if (this.shouldObserve) this.ensureDprListener();
     return this;
@@ -93,7 +113,7 @@ export class BackgroundCropper {
     const state = this.getState(el);
     const token = ++state.token;
 
-    const layers = resolveElement(el, state.originalImage);
+    const layers = resolveElement(el, state.original);
     if (!layers.some((l) => l.kind === "url")) return;
 
     const dpr = this.effectiveDpr();
@@ -105,29 +125,81 @@ export class BackgroundCropper {
     if (this.disposed || state.token !== token) return;
     if (!this.observed.has(el) && this.shouldObserve) return;
 
-    (el as HTMLElement).style.backgroundImage = built.join(", ");
+    this.apply(el as HTMLElement, state, built);
+  }
+
+  /**
+   * Write the rewritten background-image and, for any cropped layer, the
+   * placement overrides that make the smaller image paint pixel-identically.
+   */
+  private apply(el: HTMLElement, state: ElementState, built: BuiltLayer[]): void {
+    el.style.backgroundImage = built.map((b) => b.image).join(", ");
+
+    if (built.some((b) => b.paint)) {
+      const sizes = splitTopLevel(state.original.size, ",");
+      const positions = splitTopLevel(state.original.position, ",");
+      const repeats = splitTopLevel(state.original.repeat, ",");
+      el.style.backgroundSize = built
+        .map((b, i) =>
+          b.paint
+            ? `${b.paint.size.width}px ${b.paint.size.height}px`
+            : layerValue(sizes, i) || "auto",
+        )
+        .join(", ");
+      el.style.backgroundPosition = built
+        .map((b, i) =>
+          b.paint
+            ? `${b.paint.position.x}px ${b.paint.position.y}px`
+            : layerValue(positions, i) || "0% 0%",
+        )
+        .join(", ");
+      el.style.backgroundRepeat = built
+        .map((b, i) => (b.paint ? "no-repeat" : layerValue(repeats, i) || "repeat"))
+        .join(", ");
+    } else {
+      // No overrides needed: restore the element's own background longhands
+      // (whatever they were — inline value or empty so the stylesheet wins).
+      el.style.backgroundSize = state.inline.size;
+      el.style.backgroundPosition = state.inline.position;
+      el.style.backgroundRepeat = state.inline.repeat;
+    }
   }
 
   private async buildLayer(
     el: Element,
     layer: ResolvedLayer,
     dpr: number,
-  ): Promise<string> {
-    if (layer.kind === "raw") return layer.image;
+  ): Promise<BuiltLayer> {
+    if (layer.kind === "raw") return { image: layer.image, paint: null };
 
     const natural = await getNaturalSize(el, layer.geometry.url, this.hintAttribute);
     const plan = computeLayerPlan({ ...layer.geometry, natural, dpr });
-    if (!plan) return cssUrl(layer.geometry.url);
+    if (!plan) return { image: cssUrl(layer.geometry.url), paint: null };
 
     const url = await this.urlBuilder(plan);
-    return cssUrl(url);
+    return { image: cssUrl(url), paint: plan.paint };
   }
 
   private getState(el: Element): ElementState {
     let state = this.states.get(el);
     if (!state) {
-      const originalImage = getComputedStyle(el).backgroundImage;
-      state = { originalImage, token: 0 };
+      const style = getComputedStyle(el);
+      const inline = (el as HTMLElement).style;
+      state = {
+        original: {
+          image: style.backgroundImage,
+          size: style.backgroundSize,
+          position: style.backgroundPosition,
+          repeat: style.backgroundRepeat,
+        },
+        inline: {
+          image: inline.backgroundImage,
+          size: inline.backgroundSize,
+          position: inline.backgroundPosition,
+          repeat: inline.backgroundRepeat,
+        },
+        token: 0,
+      };
       this.states.set(el, state);
     }
     return state;
@@ -137,7 +209,11 @@ export class BackgroundCropper {
     const state = this.states.get(el);
     if (!state) return;
     state.token++;
-    (el as HTMLElement).style.backgroundImage = "";
+    const style = (el as HTMLElement).style;
+    style.backgroundImage = state.inline.image;
+    style.backgroundSize = state.inline.size;
+    style.backgroundPosition = state.inline.position;
+    style.backgroundRepeat = state.inline.repeat;
   }
 
   private effectiveDpr(): number {

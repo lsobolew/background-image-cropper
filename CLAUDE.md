@@ -81,13 +81,19 @@ Output is multiplied by a clamped DPR and never upscaled beyond source pixels.
 
 ## Demo
 
-`index.html` + `style.css` + the sample PNGs are the demo, driven by `main.js`
-(an ES module that imports the built `dist/index.js`). It has **no backend**: it
-uses a client-side canvas `urlBuilder` that bakes each crop into a `data:` URL,
-so hovering a cell (which restores the original via CSS `:hover`) must not move
-the picture. `style.css` rows A–F are a deliberate test matrix of
-`background-attachment` × `background-origin`. Serve via `npm run demo` (paths
-are relative, so page + PNGs are same-origin and the canvas stays untainted).
+`index.html` + `style.css`, driven by `main.js` (an ES module importing the built
+`dist/index.js`). `main.js` generates scenarios as **original vs. optimized**
+pairs: the original loads the full source from `dummyimage.com`; the optimized
+copy is rewritten by the library to fetch the visible region through `wsrv.nl`
+(a wrapper around `weservUrlBuilder` records each `CropPlan` to fill the caption).
+Serve via `npm run demo`. The demo is deployed to GitHub Pages by
+`.github/workflows/pages.yml`, which builds `dist/` and uploads the static files.
+
+Note the placement-override behaviour when editing the cropper: for a genuinely
+cropped layer the cropper writes inline `background-size`/`-position`/`-repeat`
+(from `CropPlan.paint`) so the smaller delivered image paints identically. It
+computes geometry from the *original* longhands captured in `getState`, never
+from the live style — otherwise a recompute would read back its own overrides.
 
 ## Conventions
 

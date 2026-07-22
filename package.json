@@ -42,7 +42,10 @@
     "prepublishOnly": "npm run typecheck && npm test && npm run build"
   },
   "devDependencies": {
+    "@semantic-release/changelog": "^6.0.3",
+    "@semantic-release/git": "^10.0.1",
     "@types/node": "^22.20.1",
+    "semantic-release": "^24.2.9",
     "tsup": "^8.3.5",
     "typescript": "^5.6.3"
   },

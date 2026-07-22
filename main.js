@@ -1,59 +1,154 @@
 // Demo for background-image-cropper.
 //
-// This page has no image-transform backend, so it uses a *client-side* URL
-// builder: it downloads the source once, crops & scales the exact region the
-// crop plan describes onto a <canvas>, and hands back a data: URL. Because the
-// element keeps its original background-size / -position / -repeat, the baked
-// image reproduces the original view pixel-for-pixel — hover any cell to check.
+// Every scenario renders the SAME element twice:
+//   • "original"  — the full source image straight from dummyimage.com
+//   • "optimized" — rewritten by the library to fetch just the visible region
+//                   through the wsrv.nl image proxy (https://wsrv.nl/docs/)
 //
-// In production you would instead pass `weservUrlBuilder` (or your own proxy
-// builder) so the *server* returns the smaller image and you actually save
-// bandwidth. See README.md.
-import { BackgroundCropper } from "./dist/index.js";
+// Both look identical; the optimized request downloads fewer pixels. Captions
+// are filled live from the crop plan the library computes, so they update on
+// resize and match your device's pixel ratio.
+import {
+    BackgroundCropper,
+    weservUrlBuilder,
+} from "./dist/index.js";
 
-const imageCache = new Map();
+const realDpr = window.devicePixelRatio || 1;
+document.getElementById("dpr").textContent = String(round(realDpr, 2));
 
-function loadImage(url) {
-    let promise = imageCache.get(url);
-    if (!promise) {
-        promise = new Promise((resolve, reject) => {
-            const img = new Image();
-            img.onload = () => resolve(img);
-            img.onerror = reject;
-            img.src = url;
-        });
-        imageCache.set(url, promise);
-    }
-    return promise;
+// dummyimage.com source, sized W×H with a solid colour + label.
+function source(w, h, color, label) {
+    return `https://dummyimage.com/${w}x${h}/${color}/ffffff&text=${encodeURIComponent(label)}`;
 }
 
-/** A URL builder that bakes the crop plan into a canvas data URL (no backend). */
-async function canvasBakeBuilder(plan) {
-    if (!plan.natural) return plan.url;
-    const img = await loadImage(plan.url);
+const scenarios = [
+    {
+        title: "background-size: cover · position: center",
+        desc: "A wide photo covering a squarer box — only the central band is ever seen.",
+        w: 1400, h: 500, color: "2d6cdf", height: 260,
+        style: { backgroundSize: "cover", backgroundPosition: "center", backgroundRepeat: "no-repeat" },
+    },
+    {
+        title: "background-size: cover · position: left top",
+        desc: "Same source, anchored top-left — the crop moves to the left edge.",
+        w: 1400, h: 500, color: "8a3ffc", height: 260,
+        style: { backgroundSize: "cover", backgroundPosition: "left top", backgroundRepeat: "no-repeat" },
+    },
+    {
+        title: "background-size: cover · position: right bottom · portrait source",
+        desc: "A tall source in a landscape box, anchored bottom-right.",
+        w: 500, h: 1400, color: "0f9d58", height: 300,
+        style: { backgroundSize: "cover", backgroundPosition: "right bottom", backgroundRepeat: "no-repeat" },
+    },
+    {
+        title: "background-size: contain",
+        desc: "The whole image is visible, so nothing is cropped — only downscaled to fit.",
+        w: 1400, h: 500, color: "d93025", height: 170,
+        style: { backgroundSize: "contain", backgroundPosition: "center", backgroundRepeat: "no-repeat" },
+    },
+    {
+        title: "background-size: 260% · position: center",
+        desc: "Zoomed past the box: the source is enlarged and cropped to the centre.",
+        w: 700, h: 700, color: "e8710a", height: 200,
+        style: { backgroundSize: "260%", backgroundPosition: "center", backgroundRepeat: "no-repeat" },
+    },
+    {
+        title: "background-repeat: repeat · 56px tiles",
+        desc: "A tiled background: never cropped, but the single tile is downscaled.",
+        w: 400, h: 400, color: "1a73e8", height: 170,
+        style: { backgroundSize: "56px 56px", backgroundPosition: "left top", backgroundRepeat: "repeat" },
+    },
+];
 
-    const crop = plan.crop ?? {
-        x: 0,
-        y: 0,
-        width: plan.natural.width,
-        height: plan.natural.height,
-    };
+const container = document.getElementById("scenarios");
+const captionByUrl = new Map(); // source URL -> optimized <figcaption>
 
-    const canvas = document.createElement("canvas");
-    canvas.width = plan.output.width;
-    canvas.height = plan.output.height;
-    const ctx = canvas.getContext("2d");
-    ctx.imageSmoothingQuality = "high";
-    ctx.drawImage(
-        img,
-        crop.x, crop.y, crop.width, crop.height,
-        0, 0, canvas.width, canvas.height,
+for (const s of scenarios) {
+    const src = source(s.w, s.h, s.color, `${s.w}×${s.h}`);
+
+    const section = el("section", "scenario");
+    section.append(el("h2", "", s.title), el("p", "desc", s.desc));
+
+    const pair = el("div", "pair");
+    pair.append(
+        figure(src, s, false),
+        figure(src, s, true),
     );
-    return canvas.toDataURL("image/png");
+    section.append(pair);
+    container.append(section);
 }
 
-const cropper = new BackgroundCropper({ urlBuilder: canvasBakeBuilder });
-cropper.observe(document.querySelectorAll("section > div"));
+// Wrap the wsrv.nl builder so we can show, live, what each optimized box fetched.
+const recordingBuilder = (plan) => {
+    const url = weservUrlBuilder(plan);
+    const cap = captionByUrl.get(plan.url);
+    if (cap) fillOptimizedCaption(cap, plan);
+    return url;
+};
 
-// Expose for tinkering from the console.
+const cropper = new BackgroundCropper({ urlBuilder: recordingBuilder });
+cropper.observe(document.querySelectorAll(".optimized"));
 window.__cropper = cropper;
+
+// ---------------------------------------------------------------------------
+
+function figure(src, s, optimized) {
+    const fig = document.createElement("figure");
+
+    const box = el("div", "box" + (optimized ? " optimized" : ""));
+    box.style.width = "100%";
+    box.style.height = s.height + "px";
+    box.style.backgroundImage = `url("${src}")`;
+    box.style.backgroundSize = s.style.backgroundSize;
+    box.style.backgroundPosition = s.style.backgroundPosition;
+    box.style.backgroundRepeat = s.style.backgroundRepeat;
+
+    if (optimized) {
+        box.setAttribute("data-bg-image-width", String(s.w));
+        box.setAttribute("data-bg-image-height", String(s.h));
+    }
+
+    const cap = document.createElement("figcaption");
+    if (optimized) {
+        cap.innerHTML = `<span class="label">Optimized · via wsrv.nl</span><br><span class="measure">measuring…</span>`;
+        captionByUrl.set(src, cap);
+    } else {
+        cap.innerHTML =
+            `<span class="label">Original · full image</span><br>` +
+            `<span class="measure">downloads the whole ${s.w}×${s.h} source</span>`;
+    }
+
+    fig.append(box, cap);
+    return fig;
+}
+
+function fillOptimizedCaption(cap, plan) {
+    const nat = plan.natural;
+    const out = plan.output;
+    const measure = cap.querySelector(".measure");
+    if (!nat || !measure) return;
+
+    const sourcePx = nat.width * nat.height;
+    const deliveredPx = out.width * out.height;
+    const saved = Math.max(0, Math.round((1 - deliveredPx / sourcePx) * 100));
+
+    const cropText = plan.crop
+        ? `crop ${plan.crop.width}×${plan.crop.height} @(${plan.crop.x},${plan.crop.y}) → `
+        : "whole image → ";
+
+    measure.innerHTML =
+        `${cropText}fetch <span class="stat">${out.width}×${out.height}</span> ` +
+        `<span class="saving">~${saved}% fewer pixels</span>`;
+}
+
+function el(tag, className, text) {
+    const node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text) node.textContent = text;
+    return node;
+}
+
+function round(n, digits) {
+    const f = 10 ** digits;
+    return Math.round(n * f) / f;
+}

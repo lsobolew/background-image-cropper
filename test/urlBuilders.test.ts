@@ -15,9 +15,10 @@ const cropped: CropPlan = {
   output: { width: 400, height: 300 },
   repeat: { x: "no-repeat", y: "no-repeat" },
   dpr: 2,
+  paint: { size: { width: 400, height: 300 }, position: { x: 0, y: 0 } },
 };
 
-const whole: CropPlan = { ...cropped, crop: null };
+const whole: CropPlan = { ...cropped, crop: null, paint: null };
 
 test("default proxy builder encodes output size and source crop size", () => {
   assert.equal(
@@ -34,22 +35,26 @@ test("proxy builder: no crop falls back to natural size, with base + quality", (
   );
 });
 
-test("weserv builder emits manual crop + resize params and ssl-prefixes https", () => {
+test("weserv builder emits precrop + rectangle crop + resize and ssl-prefixes https", () => {
   const url = new URL(createWeservUrlBuilder()(cropped) as string);
-  assert.equal(url.origin + url.pathname, "https://images.weserv.nl/");
+  assert.equal(url.origin + url.pathname, "https://wsrv.nl/");
   assert.equal(url.searchParams.get("url"), "ssl:cdn.example.com/photo.jpg");
+  assert.equal(url.searchParams.get("precrop"), "true");
   assert.equal(url.searchParams.get("cx"), "200");
   assert.equal(url.searchParams.get("cy"), "100");
   assert.equal(url.searchParams.get("cw"), "800");
   assert.equal(url.searchParams.get("ch"), "600");
   assert.equal(url.searchParams.get("w"), "400");
   assert.equal(url.searchParams.get("h"), "300");
+  assert.equal(url.searchParams.get("fit"), "fill");
 });
 
 test("weserv builder omits crop params when nothing is cropped", () => {
   const url = new URL(createWeservUrlBuilder()(whole) as string);
   assert.equal(url.searchParams.get("cx"), null);
+  assert.equal(url.searchParams.get("precrop"), null);
   assert.equal(url.searchParams.get("w"), "400");
+  assert.equal(url.searchParams.get("fit"), "fill");
 });
 
 test("weserv builder leaves the URL untouched when natural size is unknown", () => {

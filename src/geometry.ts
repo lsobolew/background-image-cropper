@@ -32,6 +32,10 @@ interface AxisResult {
   cropSize: number | null;
   /** Device pixels to deliver this axis at. `<= 0` means nothing is visible. */
   output: number;
+  /** Visible region start in element (border-box) CSS px. */
+  visibleStart: number;
+  /** Visible region length in CSS px. */
+  visibleSize: number;
 }
 
 /**
@@ -89,6 +93,18 @@ export function computeLayerPlan(input: LayerInput): CropPlan | null {
     height: Math.max(1, Math.ceil(y.output)),
   };
 
+  // When we deliver a genuine sub-region, the delivered image no longer has the
+  // dimensions the original `background-size` was computed against, so keeping it
+  // would re-scale the crop incorrectly. Instead we tell the host to paint the
+  // delivered image exactly over the visible rect (size + position, no-repeat).
+  // `crop != null` implies both axes are no-repeat.
+  const paint = crop
+    ? {
+        size: { width: x.visibleSize, height: y.visibleSize },
+        position: { x: x.visibleStart - p.x, y: y.visibleStart - p.y },
+      }
+    : null;
+
   return {
     url: input.url,
     natural,
@@ -96,6 +112,7 @@ export function computeLayerPlan(input: LayerInput): CropPlan | null {
     output,
     repeat: input.repeat,
     dpr,
+    paint,
   };
 }
 
@@ -112,17 +129,22 @@ function resolveAxis(
     const visibleStart = Math.max(imageStart, clipStart);
     const visibleEnd = Math.min(imageStart + rendered, clipStart + clipSize);
     const visible = visibleEnd - visibleStart;
-    if (visible <= 0) return { cropStart: null, cropSize: null, output: 0 };
+    if (visible <= 0) {
+      return { cropStart: null, cropSize: null, output: 0, visibleStart, visibleSize: 0 };
+    }
 
     if (natural === null) {
-      return { cropStart: null, cropSize: null, output: visible * dpr };
+      return {
+        cropStart: null, cropSize: null, output: visible * dpr,
+        visibleStart, visibleSize: visible,
+      };
     }
     const scale = natural / rendered;
     const cropStart = (visibleStart - imageStart) * scale;
     const cropSize = visible * scale;
     // Never request more output pixels than the source region can supply.
     const output = Math.min(visible * dpr, cropSize);
-    return { cropStart, cropSize, output };
+    return { cropStart, cropSize, output, visibleStart, visibleSize: visible };
   }
 
   // Tiling axes: the whole source is shown, so only the tile size matters.
@@ -131,11 +153,10 @@ function resolveAxis(
     const tiles = Math.max(1, Math.round(clipSize / rendered));
     tile = clipSize / tiles;
   }
-  if (natural === null) {
-    return { cropStart: null, cropSize: null, output: tile * dpr };
-  }
-  const output = Math.min(tile * dpr, natural);
-  return { cropStart: null, cropSize: null, output };
+  const visible = Math.min(clipSize, Math.max(0, imageStart + rendered - clipStart));
+  const base = { cropStart: null, cropSize: null, visibleStart: clipStart, visibleSize: visible };
+  if (natural === null) return { ...base, output: tile * dpr };
+  return { ...base, output: Math.min(tile * dpr, natural) };
 }
 
 function clampCrop(crop: Rect, natural: Size): Rect {

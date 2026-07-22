@@ -1,6 +1,6 @@
 {
   "name": "background-image-cropper",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Optimize CSS background-image downloads by cropping and scaling each layer to exactly the pixels the browser actually paints. Framework-agnostic, zero runtime dependencies, works in every browser.",
   "keywords": [
     "background-image",

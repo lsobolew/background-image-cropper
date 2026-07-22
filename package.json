@@ -15,6 +15,14 @@
     "devicePixelRatio"
   ],
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lsobolew/background-image-cropper.git"
+  },
+  "bugs": {
+    "url": "https://github.com/lsobolew/background-image-cropper/issues"
+  },
+  "homepage": "https://github.com/lsobolew/background-image-cropper#readme",
   "type": "module",
   "sideEffects": false,
   "main": "./dist/index.cjs",
@@ -45,7 +53,7 @@
     "@semantic-release/changelog": "^6.0.3",
     "@semantic-release/git": "^10.0.1",
     "@types/node": "^22.20.1",
-    "semantic-release": "^24.2.9",
+    "semantic-release": "^25.0.8",
     "tsup": "^8.3.5",
     "typescript": "^5.6.3"
   },

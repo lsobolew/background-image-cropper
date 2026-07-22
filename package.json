@@ -1,6 +1,6 @@
 {
   "name": "background-image-cropper",
-  "version": "1.0.1",
+  "version": "1.0.0",
   "description": "Optimize CSS background-image downloads by cropping and scaling each layer to exactly the pixels the browser actually paints. Framework-agnostic, zero runtime dependencies, works in every browser.",
   "keywords": [
     "background-image",
@@ -42,7 +42,10 @@
     "prepublishOnly": "npm run typecheck && npm test && npm run build"
   },
   "devDependencies": {
+    "@semantic-release/changelog": "^6.0.3",
+    "@semantic-release/git": "^10.0.1",
     "@types/node": "^22.20.1",
+    "semantic-release": "^24.2.9",
     "tsup": "^8.3.5",
     "typescript": "^5.6.3"
   },

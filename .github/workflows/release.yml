@@ -1,0 +1,43 @@
+name: Release
+
+# Fully automated releases with semantic-release: it reads Conventional Commits
+# on master, decides the next version, updates the changelog, publishes to npm
+# via OIDC trusted publishing (no token), and creates the GitHub release + tag.
+on:
+  push:
+    branches: [master]
+
+permissions:
+  contents: write # create tags/releases and push the changelog commit
+  issues: write # comment on released issues
+  pull-requests: write # comment on released PRs
+  id-token: write # OIDC for npm trusted publishing + provenance
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # semantic-release needs full history + tags
+          persist-credentials: true
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+
+      # Trusted publishing requires npm >= 11.5.1; the 11.x line also runs install
+      # scripts normally (esbuild needs its postinstall for the build).
+      - run: npm install -g npm@11
+
+      - run: npm ci
+
+      # No NPM_TOKEN: @semantic-release/npm authenticates to npm over OIDC.
+      - run: npx semantic-release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

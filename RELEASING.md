@@ -1,40 +1,46 @@
 # Releasing
 
-The first `1.0.0` was published manually. Every subsequent version is published
-automatically by GitHub Actions using **npm Trusted Publishing (OIDC)** — there
-is no npm token stored anywhere.
+Releases are fully automated with [semantic-release](https://semantic-release.gitbook.io/).
+You never bump the version, tag, or run `npm publish` by hand — you just merge
+[Conventional Commits](https://www.conventionalcommits.org/) into `master`.
 
-## One-time setup on npmjs.com (do this once)
+## How it works
 
-1. Open <https://www.npmjs.com/package/background-image-cropper/access>
-   (Settings → *Trusted Publisher*).
-2. Add a **GitHub Actions** trusted publisher with:
-   - **Organization / user:** `lsobolew`
-   - **Repository:** `background-image-cropper`
-   - **Workflow filename:** `publish.yml`
-   - **Environment:** *(leave empty)*
-3. Save. From now on the workflow can publish without a token.
+On every push to `master`, `.github/workflows/release.yml` runs semantic-release,
+which:
 
-> Trusted publishing is configured per package, which is why `1.0.0` had to be
-> published manually first to create the package.
+1. reads the commits since the last release and decides the next version,
+2. updates `CHANGELOG.md` and `package.json`,
+3. publishes to npm via **OIDC trusted publishing** (no token, provenance attached),
+4. creates the git tag and GitHub Release, and
+5. commits the changelog/version bump back to `master` (with `[skip ci]`).
 
-## Cutting a new release
+### Commit messages drive the version
 
-1. Bump the version and commit it on `master`:
-   ```sh
-   npm version patch   # or minor / major — creates a commit + tag
-   git push --follow-tags
-   ```
-2. Create a **GitHub Release** for that tag (UI, or `gh release create vX.Y.Z --generate-notes`).
-3. Publishing `.github/workflows/publish.yml` runs on the release, executes
-   `prepublishOnly` (typecheck + tests + build) and `npm publish` over OIDC, and
-   attaches build provenance automatically.
+| Commit type | Example | Release |
+| --- | --- | --- |
+| `fix:` | `fix: correct crop offset` | patch (1.0.**x**) |
+| `feat:` | `feat: add imgproxy preset` | minor (1.**x**.0) |
+| `feat!:` / `BREAKING CHANGE:` footer | `feat!: drop UMD build` | major (**x**.0.0) |
+| `docs:` / `chore:` / `ci:` / `refactor:` / `test:` | — | no release |
 
-To publish without cutting a release, trigger the workflow manually
-(Actions → *Publish to npm* → *Run workflow*) after bumping the version.
+## One-time setup (already done)
 
-## Manual publish (fallback)
+- **npm trusted publisher** configured on npmjs.com for this repo + `release.yml`
+  (see the npm package's *Settings → Trusted Publisher*). This is what lets CI
+  publish without an `NPM_TOKEN`.
+- **Baseline tag** `v1.0.0` exists, matching the manually published `1.0.0`, so
+  semantic-release knows where to continue from.
+- No `NPM_TOKEN` secret is needed and none should be added — a token would
+  interfere with OIDC trusted publishing.
+
+## Cutting a release
+
+Just merge to `master`. For example, a `fix:` commit merged to `master` publishes
+the next patch automatically; a `feat:` publishes the next minor.
+
+To preview what would be released without publishing:
 
 ```sh
-npm publish --access public   # prompts for your 2FA one-time password
+npx semantic-release --dry-run
 ```

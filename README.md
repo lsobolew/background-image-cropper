@@ -3,6 +3,9 @@
 Optimize CSS `background-image` downloads by fetching each layer **cropped and
 scaled to exactly the pixels the browser actually paints** — nothing more.
 
+**[▶ Live demo](https://lsobolew.github.io/background-image-cropper/)** ·
+[npm](https://www.npmjs.com/package/background-image-cropper)
+
 A CSS background only ever paints a sub-rectangle of its source image (decided by
 the element's box, `background-size`, `-position`, `-repeat`, `-origin`, `-clip`
 and `-attachment`). Shipping the full-resolution original wastes bandwidth. This
@@ -140,6 +143,8 @@ DPR, never upscaled beyond the source). Tiling backgrounds (`repeat`/`round`/
 scaled but not cropped, since scrolling can reveal any part of them.
 
 ## Demo
+
+Hosted: **<https://lsobolew.github.io/background-image-cropper/>**. Run it locally:
 
 ```sh
 npm install

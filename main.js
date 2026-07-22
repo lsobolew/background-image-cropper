@@ -1,129 +1,59 @@
-[].forEach.call(document.querySelectorAll('div'), function(el){
-    calculateBg(el);
-});
+// Demo for background-image-cropper.
+//
+// This page has no image-transform backend, so it uses a *client-side* URL
+// builder: it downloads the source once, crops & scales the exact region the
+// crop plan describes onto a <canvas>, and hands back a data: URL. Because the
+// element keeps its original background-size / -position / -repeat, the baked
+// image reproduces the original view pixel-for-pixel — hover any cell to check.
+//
+// In production you would instead pass `weservUrlBuilder` (or your own proxy
+// builder) so the *server* returns the smaller image and you actually save
+// bandwidth. See README.md.
+import { BackgroundCropper } from "./dist/index.js";
 
-function calculateBg(el) {
-    var bg = getBackgroundRectSize(el);
-    var bgImg = getBackgroundImageSize(el);
-    var bgPositionX = parseFloat(getComputedStyle(el).backgroundPositionX, 10);
-    var bgPositionY = parseFloat(getComputedStyle(el).backgroundPositionY, 10);
+const imageCache = new Map();
 
-    var imgWidth = el.getAttribute('data-bg-image-width');
-    var imgHeight = el.getAttribute('data-bg-image-height');
-    var heightRatio, widthRatio;
-    var resize = bg.width + 'x' + bg.height;
-    var img = {
-        width: imgWidth,
-        height: imgHeight
+function loadImage(url) {
+    let promise = imageCache.get(url);
+    if (!promise) {
+        promise = new Promise((resolve, reject) => {
+            const img = new Image();
+            img.onload = () => resolve(img);
+            img.onerror = reject;
+            img.src = url;
+        });
+        imageCache.set(url, promise);
     }
-
-    img.width = Math.round(img.width);
-    img.height = Math.round(img.height);
-
-    // el.style.backgroundImage = `url(http://localhost:8090/cw${bg.width + bg.offsetLeft - 3},ch${bg.height + bg.offsetTop - 3}/https://dummyimage.com/${imgWidth}x${imgHeight}/000/fff)`;
-    el.style.backgroundImage = `url(http://localhost:8090/${resize},fit,cw${img.width},ch${img.height},q100/${getComputedStyle(el).backgroundImage.split('"')[1]}`;
+    return promise;
 }
 
+/** A URL builder that bakes the crop plan into a canvas data URL (no backend). */
+async function canvasBakeBuilder(plan) {
+    if (!plan.natural) return plan.url;
+    const img = await loadImage(plan.url);
 
-// na jakiej powieżchni renderowany jest background
-function getBackgroundRectSize(el) {
-    // background-clip: border-box
-    var bg = {
-        width: null,
-        height: null,
-        containWidth: null,
-        containHeight: null,
-        offsetLeft: 0,
-        offsetTop: 0
-    }
-    var elementProperties = {
-        backgroundOrigin: window.getComputedStyle(el).backgroundOrigin,
-        backgroundAttachment: window.getComputedStyle(el).backgroundAttachment,
-        borderLeftWidth: parseFloat(window.getComputedStyle(el).borderLeftWidth, 10),
-        borderTopWidth: parseFloat(window.getComputedStyle(el).borderTopWidth, 10),
-        borderRightWidth: parseFloat(window.getComputedStyle(el).borderRightWidth, 10),
-        borderBottomWidth: parseFloat(window.getComputedStyle(el).borderBottomWidth, 10),
-        paddingLeft: parseFloat(window.getComputedStyle(el).paddingLeft, 10),
-        paddingTop: parseFloat(window.getComputedStyle(el).paddingTop, 10),
-        paddingBottom: parseFloat(window.getComputedStyle(el).paddingBottom, 10),
-        paddingRight: parseFloat(window.getComputedStyle(el).paddingRight, 10),
-    }
+    const crop = plan.crop ?? {
+        x: 0,
+        y: 0,
+        width: plan.natural.width,
+        height: plan.natural.height,
+    };
 
-    if(elementProperties.backgroundAttachment === "scroll"
-        || (elementProperties.backgroundAttachment === "local" && window.getComputedStyle(el).overflow === "visible")) {
-        if(elementProperties.backgroundOrigin === "border-box") {
-            bg.width = el.offsetWidth;
-            bg.height = el.offsetHeight;
-        } else if(elementProperties.backgroundOrigin === "padding-box") {
-            bg.width = el.offsetWidth - elementProperties.borderRightWidth - elementProperties.borderLeftWidth;
-            bg.height = el.offsetHeight - elementProperties.borderBottomWidth - elementProperties.borderTopWidth;
-        } else if(elementProperties.backgroundOrigin === "content-box") {
-            bg.width = el.offsetWidth - elementProperties.borderRightWidth - elementProperties.borderLeftWidth - elementProperties.paddingRight - elementProperties.paddingLeft;
-            bg.height = el.offsetHeight - elementProperties.borderBottomWidth - elementProperties.borderTopWidth - elementProperties.paddingBottom - elementProperties.paddingTop;
-        }
-    } else if(elementProperties.backgroundAttachment === "local"){
-        if(elementProperties.backgroundOrigin === "border-box") {
-            bg.width = el.scrollWidth + elementProperties.borderLeftWidth + elementProperties.borderRightWidth;
-            bg.height = el.scrollHeight + elementProperties.borderTopWidth + elementProperties.borderBottomWidth;
-        } else if(elementProperties.backgroundOrigin === "padding-box") {
-            bg.width = el.scrollWidth;
-            bg.height = el.scrollHeight;
-        } else if(elementProperties.backgroundOrigin === "content-box") {
-            bg.width = el.scrollWidth - elementProperties.paddingLeft - elementProperties.paddingRight;
-            bg.height = el.scrollHeight - elementProperties.paddingTop - elementProperties.paddingBottom;
-        }
-    }
-    el.bgSize = bg;
-    return bg;
+    const canvas = document.createElement("canvas");
+    canvas.width = plan.output.width;
+    canvas.height = plan.output.height;
+    const ctx = canvas.getContext("2d");
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(
+        img,
+        crop.x, crop.y, crop.width, crop.height,
+        0, 0, canvas.width, canvas.height,
+    );
+    return canvas.toDataURL("image/png");
 }
 
-function getBackgroundImageSize(el) {
-    var imgWidth = el.getAttribute('data-bg-image-width');
-    var imgHeight = el.getAttribute('data-bg-image-height');
-    var backgroundSize = window.getComputedStyle(el).backgroundSize;
-    var sizes = backgroundSize.split(' ');
-    var backgroundRectSize = getBackgroundRectSize(el);
-    var width, height;
+const cropper = new BackgroundCropper({ urlBuilder: canvasBakeBuilder });
+cropper.observe(document.querySelectorAll("section > div"));
 
-    if(backgroundSize === 'auto') {
-        width = 'auto';
-        height = 'auto';
-    } else if(backgroundSize === 'cover'){
-        if(imgWidth/imgHeight > backgroundRectSize.width/backgroundRectSize.height) {
-            width = 'auto';
-            height = backgroundRectSize.height;
-        } else {
-            width = backgroundRectSize.width;
-            height = 'auto';
-        }
-    } else if(backgroundSize === 'contain'){
-        if(imgWidth/imgHeight > backgroundRectSize.width/backgroundRectSize.height) {
-            width = backgroundRectSize.width;
-            height = 'auto';
-        } else {
-            width = 'auto';
-            height = backgroundRectSize.height;
-        }
-    } else if(sizes.length === 1){
-        if(sizes[0].indexOf('%') === -1) {
-            width = parseFloat(sizes[0], 10);
-        } else {
-            width = (parseFloat(sizes[0], 10) * backgroundRectSize.width) / 100;
-        }
-        height = 'auto';
-    } else {
-        if(sizes[0].indexOf('%') === -1) {
-            width = parseFloat(sizes[0], 10);
-        } else {
-            width = (parseFloat(sizes[0], 10) * backgroundRectSize.width) / 100;
-        }
-
-        if(sizes[0].indexOf('%') === -1) {
-            height = parseFloat(sizes[0], 10);
-        } else {
-            height = (parseFloat(sizes[1], 10) * backgroundRectSize.height) / 100;
-        }
-    }
-    el.bgImgSize = {width: width, height: height};
-    return {width, height};
-}
+// Expose for tinkering from the console.
+window.__cropper = cropper;

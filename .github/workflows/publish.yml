@@ -1,0 +1,33 @@
+name: Publish to npm
+
+# Publishes to npm via npm Trusted Publishing (OIDC) — no npm token is stored.
+# Fires when a GitHub Release is published; can also be run manually.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write # required for OIDC / trusted publishing
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+
+      # Trusted publishing requires npm >= 11.5.1 (newer than what setup-node ships).
+      - run: npm install -g npm@latest
+
+      - run: npm ci
+
+      # `prepublishOnly` runs typecheck + tests + build before packing.
+      # With a trusted publisher configured on npmjs.com, this authenticates
+      # via OIDC and attaches provenance automatically — no NODE_AUTH_TOKEN.
+      - run: npm publish
